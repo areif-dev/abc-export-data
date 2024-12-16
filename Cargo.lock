@@ -459,6 +459,7 @@ dependencies = [
  "help",
  "serde",
  "serde_json",
+ "sqlx",
  "sqlx-model",
 ]
 
