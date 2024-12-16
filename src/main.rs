@@ -22,9 +22,12 @@ struct Config {
 }
 
 fn export_file(abcwin: UIElement, file: &str, data_path: &str, data_files: &[&str]) -> UIElement {
+    println!("Generating report 7-10 for file {}", file);
     abc_uiautomation::reports::generate_report_710(&abcwin, file, false, "", "").unwrap();
     let mut ticks = 0 * TICKS;
     for file in data_files {
+        println!("Waiting for file with path {}/{}", data_path, file);
+
         let path = &format!("{}/{}", data_path, file);
         while !abc_uiautomation::data_file_is_ready(path).expect(&format!(
             "Encountered an unexpected IO error while waiting for {}",
@@ -40,14 +43,28 @@ fn export_file(abcwin: UIElement, file: &str, data_path: &str, data_files: &[&st
             std::thread::sleep(Duration::from_millis(1 * TICKS));
             ticks += 1 * TICKS;
         }
-        std::fs::rename(path, &format!("./{}", file)).expect(&format!("Failed to move {}", file));
+        println!("Waited for {} seconds", ticks as f64 / SECONDS as f64);
+        // Wait an extra tick for ABC UI to catch up
+        std::thread::sleep(Duration::from_millis(1 * TICKS));
+        println!(
+            "Moving data file from {}/{} to ./data/{}",
+            data_path, file, file
+        );
+        std::fs::rename(path, &format!("./data/{}", file))
+            .expect(&format!("Failed to move {}", file));
     }
 
     abcwin
 }
 
 fn main() {
+    if !std::path::Path::new("./data").exists() {
+        println!("Data directory is missing. Creating it now");
+        std::fs::create_dir("./data").expect("Failed to create data directory");
+    }
+    println!("Data directory is present");
     let cli = Cli::parse();
+    println!("Reading config file at {}", &cli.config);
     let config_file = std::fs::File::open(&cli.config).expect(&format!(
         "Failed to open config file at {}. Does it exist?",
         cli.config
@@ -61,6 +78,7 @@ fn main() {
         example_config
     ));
 
+    println!("Looking for active ABC Client4 window");
     let abcwin =
         abc_uiautomation::ensure_abc().expect("Failed to find active ABC Client 4 instance");
 
@@ -71,18 +89,22 @@ fn main() {
         );
     }
 
+    println!("Attempting to login to ABC");
     abc_uiautomation::login(&abcwin, &config.abc_username, &config.abc_password)
         .expect("Failed to login to ABC");
+    println!("Attempting to export Item data");
     let abcwin = export_file(
         abcwin,
         "I",
         "C:/ABC Software/Database Export/Company001/Data",
         &["item.data", "item_posted.data"],
     );
+    println!("Attempting to export Customer data");
     let abcwin = export_file(
         abcwin,
         "C",
         "C:/ABC Software/Database Export/Company001/Data",
-        &["customer.data", "customer_posted.path"],
+        &["customer.data", "customer_posted.data"],
     );
+    println!("Success!");
 }
