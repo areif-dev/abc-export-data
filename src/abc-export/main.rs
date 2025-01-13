@@ -1,13 +1,13 @@
 use std::time::Duration;
 
-use abc_uiautomation::UIElement;
+use abc_uiautomation::{reports::generate_simple_report_with_skips, UIElement};
 use clap::Parser;
+use export_data::Config;
+use lettre::transport::smtp::authentication::Credentials;
+use lettre::{SmtpTransport, Transport};
 use serde::Deserialize;
-
-const MILLIS: u64 = 1;
-const SECONDS: u64 = 1000 * MILLIS;
-const MINUTES: u64 = 60 * SECONDS;
-const TICKS: u64 = 500 * MILLIS;
+use std::sync::{Arc, Once};
+use std::{panic, process};
 
 #[derive(Debug, Parser)]
 struct Cli {
@@ -15,13 +15,39 @@ struct Cli {
     config: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct Config {
-    abc_username: String,
-    abc_password: String,
+const MILLIS: u64 = 1;
+const SECONDS: u64 = 1000 * MILLIS;
+const MINUTES: u64 = 60 * SECONDS;
+const TICKS: u64 = 500 * MILLIS;
+
+fn setup_panic_hook() {
+    panic::set_hook(Box::new(|panic_info| {
+        let panic_message = match panic_info.payload().downcast_ref::<&str>() {
+            Some(message) => *message,
+            None => &panic_info.to_string(),
+        };
+
+        let location = if let Some(location) = panic_info.location() {
+            format!("file '{}' at line {}", location.file(), location.line())
+        } else {
+            "unknown location".to_string()
+        };
+
+        let full_message = format!(
+            "A panic occurred:\n\nMessage: {}\nLocation: {}",
+            panic_message, location
+        );
+
+        if let Err(e) = process::Command::new("./email-error.exe")
+            .arg(full_message)
+            .output()
+        {
+            eprintln!("Failed to call email-error process: {:?}", e);
+        }
+    }));
 }
 
-fn export_file(abcwin: UIElement, file: &str, data_path: &str, data_files: &[&str]) -> UIElement {
+fn export_file(abcwin: &UIElement, file: &str, data_path: &str, data_files: &[&str]) {
     println!("Generating report 7-10 for file {}", file);
     abc_uiautomation::reports::generate_report_710(&abcwin, file, false, "", "").unwrap();
     let mut ticks = 0 * TICKS;
@@ -53,18 +79,12 @@ fn export_file(abcwin: UIElement, file: &str, data_path: &str, data_files: &[&st
         std::fs::rename(path, &format!("./data/{}", file))
             .expect(&format!("Failed to move {}", file));
     }
-
-    abcwin
 }
 
 fn main() {
-    if !std::path::Path::new("./data").exists() {
-        println!("Data directory is missing. Creating it now");
-        std::fs::create_dir("./data").expect("Failed to create data directory");
-    }
-    println!("Data directory is present");
+    setup_panic_hook();
     let cli = Cli::parse();
-    println!("Reading config file at {}", &cli.config);
+    println!("Opening config file");
     let config_file = std::fs::File::open(&cli.config).expect(&format!(
         "Failed to open config file at {}. Does it exist?",
         cli.config
@@ -72,12 +92,23 @@ fn main() {
     let example_config = Config {
         abc_username: "String".to_string(),
         abc_password: "String".to_string(),
+        notifier_email: "String".to_string(),
+        notifier_passwd: "String".to_string(),
+        smtp_relay: "String".to_string(),
+        smtp_port: 465,
+        admin_email: "String".to_string(),
     };
+    println!("Parsing config file");
     let config: Config = serde_json::from_reader(config_file).expect(&format!(
         "Config file is improperly formatted. Expected format: \n{:#?}\n",
         example_config
     ));
 
+    if !std::path::Path::new("./data").exists() {
+        println!("Data directory is missing. Creating it now");
+        std::fs::create_dir("./data").expect("Failed to create data directory");
+    }
+    println!("Data directory is present");
     println!("Looking for active ABC Client4 window");
     let abcwin =
         abc_uiautomation::ensure_abc().expect("Failed to find active ABC Client 4 instance");
@@ -93,15 +124,15 @@ fn main() {
     abc_uiautomation::login(&abcwin, &config.abc_username, &config.abc_password)
         .expect("Failed to login to ABC");
     println!("Attempting to export Item data");
-    let abcwin = export_file(
-        abcwin,
+    export_file(
+        &abcwin,
         "I",
         "C:/ABC Software/Database Export/Company001/Data",
         &["item.data", "item_posted.data"],
     );
     println!("Attempting to export Customer data");
-    let abcwin = export_file(
-        abcwin,
+    export_file(
+        &abcwin,
         "C",
         "C:/ABC Software/Database Export/Company001/Data",
         &["customer.data", "customer_posted.data"],
