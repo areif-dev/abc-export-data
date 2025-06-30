@@ -76,7 +76,7 @@ fn export_file(abcwin: &UIElement, file: &str, data_path: &str, data_files: &[&s
             "Moving data file from {}/{} to ./data/{}",
             data_path, file, file
         );
-        std::fs::rename(path, &format!("./data/{}", file))
+        std::fs::copy(path, &format!("./data/{}", file))
             .expect(&format!("Failed to move {}", file));
     }
 }
