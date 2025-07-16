@@ -1,12 +1,8 @@
 use std::time::Duration;
 
-use abc_uiautomation::{reports::generate_simple_report_with_skips, UIElement};
+use abc_uiautomation::UIElement;
 use clap::Parser;
 use export_data::Config;
-use lettre::transport::smtp::authentication::Credentials;
-use lettre::{SmtpTransport, Transport};
-use serde::Deserialize;
-use std::sync::{Arc, Once};
 use std::{panic, process};
 
 #[derive(Debug, Parser)]
