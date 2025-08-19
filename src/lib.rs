@@ -1,10 +1,7 @@
 use serde::Deserialize;
 
-mod models;
-
 #[derive(Debug)]
 pub enum AbcExportError {
-    Sqlx(sqlx::Error),
     SerdeJson(serde_json::Error),
     Custom(String),
 }
@@ -12,12 +9,6 @@ pub enum AbcExportError {
 impl From<serde_json::Error> for AbcExportError {
     fn from(value: serde_json::Error) -> Self {
         AbcExportError::SerdeJson(value)
-    }
-}
-
-impl From<sqlx::Error> for AbcExportError {
-    fn from(value: sqlx::Error) -> Self {
-        AbcExportError::Sqlx(value)
     }
 }
 
