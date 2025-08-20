@@ -119,17 +119,12 @@ fn main() {
     println!("Attempting to login to ABC");
     abc_uiautomation::login(&abcwin, &config.abc_username, &config.abc_password)
         .expect("Failed to login to ABC");
-    println!("Attempting to export Item and Customer data");
+    println!("Attempting to export Item data");
     export_file(
         &abcwin,
-        "I,C",
+        "I",
         "C:/ABC Software/Database Export/Company001/Data",
-        &[
-            "item.data",
-            "item_posted.data",
-            "customer.data",
-            "customer_posted.data",
-        ],
+        &["item.data", "item_posted.data"],
     );
     println!("Success!");
 }
